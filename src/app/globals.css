@@ -1,26 +1,187 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #0a0706;
+  --foreground: #f3d4a0;
+  --amber-glow: #f59e0b;
+  --amber-dim: #92400e;
+  --burgundy: #4a151b;
+  --burgundy-dark: #2a0a0f;
+  --ivory: #fffbf0;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #070504;
+  color: #eed6b0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+/* Prevent blue focus box/layer around clicked SVG paths and elements */
+svg, svg *, g, path, circle, rect {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+*:focus {
+  outline: none !important;
+}
+
+*:focus-visible {
+  outline: none !important;
+}
+
+/* CRT Scanlines and Screen Grain */
+.crt-scanlines {
+  background: linear-gradient(
+    rgba(15, 12, 10, 0) 50%,
+    rgba(0, 0, 0, 0.35) 50%
+  );
+  background-size: 100% 3px;
+  pointer-events: none;
+}
+
+.crt-vignette {
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8), inset 0 0 100px rgba(0, 0, 0, 0.95);
+  pointer-events: none;
+}
+
+/* TVA HUD Grid matching Image 2 (Dark charcoal background with unified 60px ochre grid) */
+.tva-hud-grid {
+  background-color: #12100b;
+  background-image: 
+    linear-gradient(to right, rgba(165, 110, 38, 0.22) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(165, 110, 38, 0.22) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Phosphor Glows */
+.glow-amber-text {
+  text-shadow: 0 0 5px rgba(245, 158, 11, 0.8), 0 0 12px rgba(217, 119, 6, 0.5);
+}
+
+.glow-ivory-text {
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.9), 0 0 15px rgba(254, 243, 199, 0.6);
+}
+
+.glow-amber-box {
+  box-shadow: 0 0 15px rgba(230, 126, 34, 0.3), inset 0 0 10px rgba(230, 126, 34, 0.15);
+}
+
+.animate-fade-in-node {
+  animation: fadeInNode 0.2s ease-out forwards;
+}
+
+@keyframes fadeInNode {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Main Timeline Sequential Growth Animation: 0s -> 1.4s */
+.draw-anim-trunk {
+  stroke-dasharray: 1050;
+  stroke-dashoffset: 1050;
+  animation: growTrunk 1.4s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+@keyframes growTrunk {
+  from {
+    stroke-dashoffset: 1050;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 4 Sub-Branches Sequential Growth Animation: starts right after main branch at ~1.35s */
+.draw-anim-branch-0 {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: growBranch0 0.9s cubic-bezier(0.25, 0.1, 0.25, 1) 1.35s forwards;
+}
+
+.draw-anim-branch-1 {
+  stroke-dasharray: 450;
+  stroke-dashoffset: 450;
+  animation: growBranch1 0.95s cubic-bezier(0.25, 0.1, 0.25, 1) 1.45s forwards;
+}
+
+.draw-anim-branch-2 {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: growBranch2 0.9s cubic-bezier(0.25, 0.1, 0.25, 1) 1.35s forwards;
+}
+
+.draw-anim-branch-3 {
+  stroke-dasharray: 420;
+  stroke-dashoffset: 420;
+  animation: growBranch3 0.95s cubic-bezier(0.25, 0.1, 0.25, 1) 1.45s forwards;
+}
+
+@keyframes growBranch0 {
+  from { stroke-dashoffset: 400; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes growBranch1 {
+  from { stroke-dashoffset: 450; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes growBranch2 {
+  from { stroke-dashoffset: 400; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes growBranch3 {
+  from { stroke-dashoffset: 420; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Custom Phosphor Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #110c0a;
+  border-left: 1px solid #2d180f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #b45309;
+  border-radius: 1px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+}
+
+/* Reduced Motion Override */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  [class*="draw-"] {
+    stroke-dashoffset: 0 !important;
+    animation: none !important;
+  }
+  .animate-fade-in-node {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
 }
