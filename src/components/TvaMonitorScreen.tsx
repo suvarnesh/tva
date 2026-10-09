@@ -12,6 +12,8 @@ import {
   branchWidthFn,
   generatePartialRibbonPath,
 } from "@/lib/timelineRibbon";
+import { tvaAudio } from "@/lib/tvaAudio";
+import { AudioControlToggle } from "@/components/AudioControlToggle";
 
 interface TvaMonitorScreenProps {
   data: TimelineDetectionResult;
@@ -27,8 +29,6 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
   const [selectedEventIndex, setSelectedEventIndex] = useState<number | null>(null);
 
   // Sequential growth animation state
-  // Phase 1: Main branch grows from zero to full branch (0s -> 1.35s)
-  // Phase 2: All sub-branches sprout outward from roots to full tips (1.35s -> 2.25s)
   const isReducedMotion =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -38,11 +38,19 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
   const [branchesGrowth, setBranchesGrowth] = useState<number>(() => (isReducedMotion ? 1 : 0));
   const [isAnimationDone, setIsAnimationDone] = useState<boolean>(() => isReducedMotion);
 
+  // Stop geiger counter on unmount
+  useEffect(() => {
+    return () => {
+      tvaAudio.setGeigerIntensity(null);
+    };
+  }, []);
+
   useEffect(() => {
     if (isReducedMotion) return;
 
     let startTime: number | null = null;
     let rafId: number;
+    const playedBlooms = [false, false, false, false];
 
     const durationMain = 1350; // 1.35s main timeline growth
     const durationBranches = 900; // 0.9s sub-branches growth
@@ -68,6 +76,16 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
         setMainGrowth(1);
         const bp = (elapsed - durationMain) / durationBranches;
         setBranchesGrowth(easeOutCubic(bp));
+
+        // Harmonic bloom chimes as the 4 branches sprout outward
+        const branchProgress = bp * 4;
+        for (let i = 0; i < 4; i++) {
+          if (branchProgress >= i + 0.1 && !playedBlooms[i]) {
+            playedBlooms[i] = true;
+            tvaAudio.playBranchBloom(i);
+          }
+        }
+
         rafId = requestAnimationFrame(frame);
       } else {
         // Animation complete: lock to full precomputed paths
@@ -85,6 +103,7 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
   }, [animKey, isReducedMotion]);
 
   const handleReplayAnimation = () => {
+    tvaAudio.playBeep(1100, 0.06);
     setMainGrowth(0);
     setBranchesGrowth(0);
     setIsAnimationDone(false);
@@ -112,9 +131,33 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
   const handleSelectBranch = useCallback((branchId: string | null) => {
     setSelectedBranchId(branchId);
     setSelectedEventIndex(null);
-  }, []);
+    if (branchId === null) {
+      tvaAudio.playBeep(880, 0.05);
+      tvaAudio.setGeigerIntensity(null);
+    } else {
+      const br = data.alternatives.find((b) => b.id === branchId);
+      const variance = br?.varianceScore ?? 80;
+      tvaAudio.playBranchSelect(variance);
+      tvaAudio.setGeigerIntensity(variance);
+    }
+  }, [data.alternatives]);
+
+  const handleHoverBranch = useCallback((index: number | null) => {
+    setHoveredBranchIndex(index);
+    if (index !== null) {
+      const br = data.alternatives[index];
+      const variance = br?.varianceScore ?? 80;
+      tvaAudio.setGeigerIntensity(variance);
+    } else if (selectedBranchId !== null) {
+      const selected = data.alternatives.find((b) => b.id === selectedBranchId);
+      tvaAudio.setGeigerIntensity(selected?.varianceScore ?? null);
+    } else {
+      tvaAudio.setGeigerIntensity(null);
+    }
+  }, [data.alternatives, selectedBranchId]);
 
   const handleSelectEvent = useCallback((branchId: string, eventIndex: number) => {
+    tvaAudio.playBeep(1200, 0.05);
     setSelectedBranchId(branchId);
     setSelectedEventIndex(eventIndex);
   }, []);
@@ -264,13 +307,18 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
             </button>
 
             <button
-              onClick={() => setIsJsonModalOpen(true)}
+              onClick={() => {
+                tvaAudio.playBeep(700, 0.06);
+                setIsJsonModalOpen(true);
+              }}
               title="Inspect and copy generated timeline JSON"
               className="ml-1 px-2.5 py-1 rounded bg-[#1d120a] border border-[#e67e22] hover:bg-[#351b0f] text-[#f39c12] text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
             >
               <span>{'{ }'}</span>
               <span>JSON</span>
             </button>
+
+            <AudioControlToggle className="ml-1" />
           </div>
         </div>
 
@@ -385,8 +433,8 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
                     className="cursor-pointer outline-none focus:outline-none"
                     style={{ outline: "none" }}
                     onClick={() => handleSelectBranch(alt.id)}
-                    onMouseEnter={() => setHoveredBranchIndex(idx)}
-                    onMouseLeave={() => setHoveredBranchIndex(null)}
+                    onMouseEnter={() => handleHoverBranch(idx)}
+                    onMouseLeave={() => handleHoverBranch(null)}
                     tabIndex={0}
                     role="button"
                     aria-label={`Select Branch 0${alt.branchNumber}: ${alt.title}`}
@@ -707,7 +755,10 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
           {/* Bottom Center: OVERTHROW TIME KEEPERS Red Pill Button */}
           <div>
             <button
-              onClick={onResetToPrompt}
+              onClick={() => {
+                tvaAudio.playBeep(650, 0.08);
+                onResetToPrompt();
+              }}
               className="px-5 sm:px-8 py-2 bg-[#8b1515] hover:bg-[#a51919] active:scale-[0.98] border border-[#d92222] rounded-lg text-white font-mono font-bold text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_12px_rgba(217,34,34,0.4)] transition-all cursor-pointer"
             >
               OVERTHROW TIME KEEPERS
