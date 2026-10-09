@@ -1,15 +1,38 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { TimelineDetectionResult } from "@/types/timeline";
 import { TvaPromptScreen } from "@/components/TvaPromptScreen";
 import { TvaMonitorScreen } from "@/components/TvaMonitorScreen";
+import { tvaAudio } from "@/lib/tvaAudio";
 
 const STORAGE_KEY = "tva_atds_last_exploration";
 
 export default function Home() {
   // Screen state: "prompt" (Screen 1) or "monitor" (Screen 2)
   const [screen, setScreen] = useState<"prompt" | "monitor">("prompt");
+  
+  // Unlock audio on first user interaction anywhere
+  useEffect(() => {
+    let unlocked = false;
+    const handleFirstInteraction = () => {
+      if (!unlocked) {
+        unlocked = true;
+        tvaAudio.unlock();
+        tvaAudio.playCrtBoot();
+      }
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("keydown", handleFirstInteraction);
+    };
+
+    window.addEventListener("click", handleFirstInteraction, { once: true });
+    window.addEventListener("keydown", handleFirstInteraction, { once: true });
+
+    return () => {
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("keydown", handleFirstInteraction);
+    };
+  }, []);
   
   // Timeline Data (Live AI Generated)
   const [data, setData] = useState<TimelineDetectionResult | null>(() => {

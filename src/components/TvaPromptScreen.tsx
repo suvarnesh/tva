@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { tvaAudio } from "@/lib/tvaAudio";
+import { AudioControlToggle } from "@/components/AudioControlToggle";
 
 interface TvaPromptScreenProps {
   onSearch: (query: string) => void;
@@ -15,14 +17,27 @@ export const TvaPromptScreen: React.FC<TvaPromptScreenProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState("");
 
+  // Rhythmic teletype calculation acoustic loop while calculating
+  useEffect(() => {
+    if (!isLoading) return;
+    const interval = setInterval(() => {
+      tvaAudio.playTeletypeClick();
+    }, 180 + Math.random() * 80);
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputValue.trim()) {
+      tvaAudio.unlock();
+      tvaAudio.playBeep(980, 0.08);
       onSearch(inputValue.trim());
     }
   };
 
   const handlePreset = (preset: string) => {
+    tvaAudio.unlock();
+    tvaAudio.playBeep(880, 0.06);
     setInputValue(preset);
     onSearch(preset);
   };
@@ -32,11 +47,16 @@ export const TvaPromptScreen: React.FC<TvaPromptScreenProps> = ({
       {/* Outer TVA Border matching the HUD reference */}
       <div className="w-full bg-[#0c0806] border-[3px] border-[#e67e22] rounded-3xl p-6 sm:p-10 shadow-[0_0_40px_rgba(230,126,34,0.35),inset_0_0_30px_rgba(0,0,0,0.85)] tva-hud-grid relative overflow-hidden">
         
+        {/* Top Floating Control Bar */}
+        <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20">
+          <AudioControlToggle />
+        </div>
+
         {/* CRT Scanline overlay */}
         <div className="crt-scanlines absolute inset-0 pointer-events-none opacity-30" />
 
         {/* Top Header Badge */}
-        <div className="flex flex-col items-center text-center gap-2 mb-8 relative z-10">
+        <div className="flex flex-col items-center text-center gap-2 mb-8 relative z-10 pt-4 sm:pt-0">
           <div className="flex items-center gap-3">
             <span className="text-3xl sm:text-4xl font-extrabold text-[#f39c12] tracking-widest drop-shadow-[0_0_12px_rgba(243,156,18,0.8)]">
               TVA
@@ -87,7 +107,11 @@ export const TvaPromptScreen: React.FC<TvaPromptScreenProps> = ({
                 id="historical-event-input"
                 type="text"
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={(e) => {
+                  setInputValue(e.target.value);
+                  tvaAudio.unlock();
+                  tvaAudio.playTeletypeClick();
+                }}
                 placeholder="E.G., 'APOLLO 11', 'FALL OF BERLIN WALL'..."
                 disabled={isLoading}
                 autoFocus
