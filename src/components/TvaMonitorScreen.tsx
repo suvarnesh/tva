@@ -28,6 +28,11 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [selectedEventIndex, setSelectedEventIndex] = useState<number | null>(null);
 
+  // TVA Reset Charge & Pruning states
+  const [prunedBranchIds, setPrunedBranchIds] = useState<string[]>([]);
+  const [pruningBranchId, setPruningBranchId] = useState<string | null>(null);
+  const [pruneAlertMessage, setPruneAlertMessage] = useState<string | null>(null);
+
   // Sequential growth animation state
   const isReducedMotion =
     typeof window !== "undefined" &&
@@ -128,6 +133,45 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
     (b) => b.id === selectedBranchId
   );
 
+  const handleDeployResetCharge = useCallback((branchId: string) => {
+    if (pruningBranchId !== null) return;
+    const branchToPrune = data.alternatives.find((b) => b.id === branchId);
+    if (!branchToPrune) return;
+
+    setPruningBranchId(branchId);
+    tvaAudio.playResetChargeSound();
+
+    setTimeout(() => {
+      setPrunedBranchIds((prev) => Array.from(new Set([...prev, branchId])));
+      setPruningBranchId(null);
+      setSelectedBranchId(null);
+      setSelectedEventIndex(null);
+      tvaAudio.setGeigerIntensity(null);
+
+      setPruneAlertMessage(
+        `BRANCH 0${branchToPrune.branchNumber} PURGED // RESET CHARGE DEPLOYED // TIMELINE NORMALIZED`
+      );
+      setTimeout(() => {
+        setPruneAlertMessage(null);
+      }, 5000);
+    }, 850);
+  }, [data.alternatives, pruningBranchId]);
+
+  const handleRestoreBranch = useCallback((branchId: string) => {
+    setPrunedBranchIds((prev) => prev.filter((id) => id !== branchId));
+    tvaAudio.playBeep(980, 0.08);
+    setSelectedBranchId(branchId);
+    const br = data.alternatives.find((b) => b.id === branchId);
+    if (br) {
+      tvaAudio.setGeigerIntensity(br.varianceScore);
+    }
+  }, [data.alternatives]);
+
+  const handleRestoreAllBranches = useCallback(() => {
+    setPrunedBranchIds([]);
+    tvaAudio.playBeep(1040, 0.1);
+  }, []);
+
   const handleSelectBranch = useCallback((branchId: string | null) => {
     setSelectedBranchId(branchId);
     setSelectedEventIndex(null);
@@ -135,26 +179,35 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
       tvaAudio.playBeep(880, 0.05);
       tvaAudio.setGeigerIntensity(null);
     } else {
-      const br = data.alternatives.find((b) => b.id === branchId);
-      const variance = br?.varianceScore ?? 80;
-      tvaAudio.playBranchSelect(variance);
-      tvaAudio.setGeigerIntensity(variance);
+      const isPruned = prunedBranchIds.includes(branchId);
+      if (isPruned) {
+        tvaAudio.playBeep(480, 0.06);
+        tvaAudio.setGeigerIntensity(null);
+      } else {
+        const br = data.alternatives.find((b) => b.id === branchId);
+        const variance = br?.varianceScore ?? 80;
+        tvaAudio.playBranchSelect(variance);
+        tvaAudio.setGeigerIntensity(variance);
+      }
     }
-  }, [data.alternatives]);
+  }, [data.alternatives, prunedBranchIds]);
 
   const handleHoverBranch = useCallback((index: number | null) => {
     setHoveredBranchIndex(index);
     if (index !== null) {
       const br = data.alternatives[index];
-      const variance = br?.varianceScore ?? 80;
-      tvaAudio.setGeigerIntensity(variance);
-    } else if (selectedBranchId !== null) {
+      if (br && !prunedBranchIds.includes(br.id)) {
+        tvaAudio.setGeigerIntensity(br.varianceScore);
+      } else {
+        tvaAudio.setGeigerIntensity(null);
+      }
+    } else if (selectedBranchId !== null && !prunedBranchIds.includes(selectedBranchId)) {
       const selected = data.alternatives.find((b) => b.id === selectedBranchId);
       tvaAudio.setGeigerIntensity(selected?.varianceScore ?? null);
     } else {
       tvaAudio.setGeigerIntensity(null);
     }
-  }, [data.alternatives, selectedBranchId]);
+  }, [data.alternatives, selectedBranchId, prunedBranchIds]);
 
   const handleSelectEvent = useCallback((branchId: string, eventIndex: number) => {
     tvaAudio.playBeep(1200, 0.05);
@@ -258,12 +311,24 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
         {/* Subtle Scanline Overlay */}
         <div className="crt-scanlines absolute inset-0 pointer-events-none opacity-20 z-0" />
 
-        {/* Top Control Bar (Branch Switchers & Replay) */}
+        {/* Top Control Bar (Branch Switchers, Reset Charge & Replay) */}
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 pb-3 mb-2 border-b border-[#e67e22]/30 text-xs">
           <div className="flex items-center gap-2">
             <span className="text-[#e67e22] font-bold">STATUS:</span>
-            <span className="text-[#fef3c7] font-semibold">
-              {selectedBranchId === null ? "SACRED TIMELINE LOCKED" : "BRANCH DETECTED"}
+            <span
+              className={`font-semibold ${
+                pruneAlertMessage
+                  ? "text-[#f87171] animate-pulse glow-amber-text"
+                  : "text-[#fef3c7]"
+              }`}
+            >
+              {pruneAlertMessage
+                ? pruneAlertMessage
+                : selectedBranchId === null
+                ? "SACRED TIMELINE LOCKED"
+                : prunedBranchIds.includes(selectedBranchId)
+                ? "BRANCH PURGED (INACTIVE)"
+                : "BRANCH DETECTED"}
             </span>
             <span className="text-[10px] text-[#aa6b4f]">
               {" // "} EVENT: &quot;{data.query}&quot;
@@ -283,25 +348,60 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
               SACRED TIMELINE
             </button>
 
-            {data.alternatives.map((b, i) => (
+            {data.alternatives.map((b, i) => {
+              const isPruned = prunedBranchIds.includes(b.id);
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => handleSelectBranch(b.id)}
+                  className={`px-2.5 py-1 rounded border text-[11px] font-bold transition-all cursor-pointer ${
+                    selectedBranchId === b.id
+                      ? isPruned
+                        ? "bg-[#351010] text-[#fca5a5] border-[#ef4444] shadow-[0_0_8px_rgba(239,68,68,0.5)] line-through"
+                        : "bg-[#e67e22] text-[#090604] border-[#f39c12] shadow-[0_0_10px_rgba(230,126,34,0.6)]"
+                      : isPruned
+                      ? "bg-[#180a0a] text-[#803030] border-[#381010] hover:border-[#ef4444] line-through"
+                      : "bg-[#180d09] text-[#e0a980] border-[#54271c] hover:border-[#e67e22]"
+                  }`}
+                  title={
+                    isPruned
+                      ? `Branch 0${b.branchNumber} was pruned by TVA Reset Charge`
+                      : `Shortcut: Press ${i + 1}`
+                  }
+                >
+                  BRANCH 0{b.branchNumber} {isPruned ? "✕" : ""}
+                </button>
+              );
+            })}
+
+            {/* Quick Top-Bar Reset Charge Action if active branch selected */}
+            {selectedBranch && !prunedBranchIds.includes(selectedBranch.id) && (
               <button
-                key={b.id}
-                onClick={() => handleSelectBranch(b.id)}
-                className={`px-2.5 py-1 rounded border text-[11px] font-bold transition-all cursor-pointer ${
-                  selectedBranchId === b.id
-                    ? "bg-[#e67e22] text-[#090604] border-[#f39c12] shadow-[0_0_10px_rgba(230,126,34,0.6)]"
-                    : "bg-[#180d09] text-[#e0a980] border-[#54271c] hover:border-[#e67e22]"
-                }`}
-                title={`Shortcut: Press ${i + 1}`}
+                onClick={() => handleDeployResetCharge(selectedBranch.id)}
+                disabled={pruningBranchId !== null}
+                title="Activate TVA Reset Charge to neutralize and purge this alternate branch"
+                className="px-2.5 py-1 rounded bg-[#7f1d1d] hover:bg-[#991b1b] border border-[#ef4444] text-[#fef2f2] text-[11px] font-bold transition-all shadow-[0_0_10px_rgba(239,68,68,0.4)] flex items-center gap-1 cursor-pointer disabled:opacity-50"
               >
-                BRANCH 0{b.branchNumber}
+                <span className="text-[#fca5a5] animate-pulse">⚡</span>
+                <span>{pruningBranchId === selectedBranch.id ? "IONIZING..." : "PRUNE"}</span>
               </button>
-            ))}
+            )}
+
+            {/* Quick Restore All Button if any branches were pruned */}
+            {prunedBranchIds.length > 0 && (
+              <button
+                onClick={handleRestoreAllBranches}
+                title="Restore all pruned alternative timelines"
+                className="px-2.5 py-1 rounded bg-[#1f160b] hover:bg-[#2e1d0c] border border-[#f59e0b] text-[#fcd34d] text-[11px] font-bold transition-all cursor-pointer"
+              >
+                ↺ RESTORE ALL ({prunedBranchIds.length})
+              </button>
+            )}
 
             <button
               onClick={handleReplayAnimation}
               title="Replay timeline & branch growth animation"
-              className="ml-1 px-2.5 py-1 rounded bg-[#2a130b] border border-[#d35400] hover:bg-[#3d1a0e] text-[#ffd384] text-[11px] font-bold transition-colors cursor-pointer"
+              className="ml-0.5 px-2.5 py-1 rounded bg-[#2a130b] border border-[#d35400] hover:bg-[#3d1a0e] text-[#ffd384] text-[11px] font-bold transition-colors cursor-pointer"
             >
               ⟳ REPLAY
             </button>
@@ -312,13 +412,13 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
                 setIsJsonModalOpen(true);
               }}
               title="Inspect and copy generated timeline JSON"
-              className="ml-1 px-2.5 py-1 rounded bg-[#1d120a] border border-[#e67e22] hover:bg-[#351b0f] text-[#f39c12] text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+              className="ml-0.5 px-2.5 py-1 rounded bg-[#1d120a] border border-[#e67e22] hover:bg-[#351b0f] text-[#f39c12] text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
             >
               <span>{'{ }'}</span>
               <span>JSON</span>
             </button>
 
-            <AudioControlToggle className="ml-1" />
+            <AudioControlToggle className="ml-0.5" />
           </div>
         </div>
 
@@ -341,6 +441,15 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
                     <feMergeNode in="SourceGraphic" />
                   </feMerge>
                 </filter>
+
+                {/* TVA Reset Charge Plasma Disintegration Filter */}
+                <filter id="prune-plasma" x="-30%" y="-30%" width="160%" height="160%">
+                  <feGaussianBlur stdDeviation="6" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
               </defs>
 
               {/* 1. Restrained Amber Bloom Layer (Warm soft underglow beneath ribbons) */}
@@ -354,12 +463,29 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
                   const alt = data.alternatives[idx];
                   if (!alt) return null;
                   const isSelected = selectedBranchId === alt.id;
+                  const isPruned = prunedBranchIds.includes(alt.id);
+                  const isPruning = pruningBranchId === alt.id;
+
+                  if (isPruning) {
+                    return (
+                      <path
+                        key={`glow-${alt.id}`}
+                        d={bPath}
+                        fill="#ec4899"
+                        opacity={0.95}
+                        filter="url(#prune-plasma)"
+                        className="animate-prune-pulse"
+                      />
+                    );
+                  }
+
                   return (
                     <path
                       key={`glow-${alt.id}`}
                       d={bPath}
-                      fill={isSelected ? "#f59e0b" : "#e67e22"}
-                      opacity={isSelected ? 0.75 : 0.4}
+                      fill={isPruned ? "#451212" : isSelected ? "#f59e0b" : "#e67e22"}
+                      opacity={isPruned ? 0.08 : isSelected ? 0.75 : 0.4}
+                      className="transition-all duration-300"
                     />
                   );
                 })}
@@ -385,18 +511,67 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
                   if (!alt) return null;
                   const isSelected = selectedBranchId === alt.id;
                   const isHovered = hoveredBranchIndex === idx;
+                  const isPruned = prunedBranchIds.includes(alt.id);
+                  const isPruning = pruningBranchId === alt.id;
+
+                  if (isPruning) {
+                    return (
+                      <path
+                        key={`core-${alt.id}`}
+                        d={bPath}
+                        fill="#f43f5e"
+                        stroke="#a855f7"
+                        strokeWidth="3.5"
+                        filter="url(#prune-plasma)"
+                        className="animate-prune-pulse"
+                      />
+                    );
+                  }
 
                   return (
                     <path
                       key={`core-${alt.id}`}
                       d={bPath}
-                      fill={isSelected ? "#ffffff" : isHovered ? "#fffdf5" : "#fdf8ea"}
-                      opacity={selectedBranchId !== null && !isSelected ? 0.5 : 0.95}
-                      className="transition-colors duration-200"
+                      fill={
+                        isPruned
+                          ? "#351212"
+                          : isSelected
+                          ? "#ffffff"
+                          : isHovered
+                          ? "#fffdf5"
+                          : "#fdf8ea"
+                      }
+                      opacity={
+                        isPruned
+                          ? 0.16
+                          : selectedBranchId !== null && !isSelected
+                          ? 0.5
+                          : 0.95
+                      }
+                      stroke={isPruned ? "#ef4444" : "none"}
+                      strokeWidth={isPruned ? "1" : "0"}
+                      strokeDasharray={isPruned ? "4 4" : "none"}
+                      className="transition-all duration-300"
                     />
                   );
                 })}
               </g>
+
+              {/* Electrical Plasma Spark Discharge during Reset Charge pruning */}
+              {pruningBranchId && (
+                <g filter="url(#restrained-glow)">
+                  {BRANCH_GEOMETRIES.map((geom, idx) => {
+                    const alt = data.alternatives[idx];
+                    if (!alt || alt.id !== pruningBranchId) return null;
+                    return geom.eventPositions.map((pos, pIdx) => (
+                      <g key={`spark-${pIdx}`} className="animate-ping">
+                        <circle cx={pos.x} cy={pos.y} r="16" fill="#ec4899" opacity="0.75" />
+                        <circle cx={pos.x} cy={pos.y} r="7" fill="#38bdf8" opacity="0.95" />
+                      </g>
+                    ));
+                  })}
+                </g>
+              )}
 
               {/* 3. Invisible Hit Paths (Wide paths for comfortable click/hover interaction) */}
               {/* Sacred Timeline Hit Path */}
@@ -583,15 +758,58 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
           {/* RIGHT AREA: Boxed TVA HUD Panels (5 Cols) */}
           <div className="lg:col-span-5 flex flex-col gap-3 sm:gap-4 h-full justify-center">
             
-            {/* Box 1 (Top): Title Box with Rounded Orange Border */}
-            <div className="w-full bg-[#120c09] border-2 border-[#e67e22] rounded-xl px-4 py-3 sm:py-3.5 text-center shadow-[0_0_15px_rgba(230,126,34,0.25)]">
-              <span className="text-sm sm:text-base font-bold text-[#f39c12] tracking-widest uppercase glow-amber-text block">
-                {selectedBranchId === null
-                  ? "THE SACRED TIMELINE (ACTUAL HISTORY)"
-                  : selectedBranch
-                  ? `BRANCH 0${selectedBranch.branchNumber}: ${selectedBranch.shortTag}`
-                  : "BRANCH DETECTED"}
-              </span>
+            {/* Box 1 (Top): Title Box with Rounded Orange Border & Reset Charge Action */}
+            <div className="w-full bg-[#120c09] border-2 border-[#e67e22] rounded-xl px-4 py-3 sm:py-3.5 shadow-[0_0_15px_rgba(230,126,34,0.25)] flex flex-col gap-2">
+              <div className="text-center">
+                <span className="text-sm sm:text-base font-bold text-[#f39c12] tracking-widest uppercase glow-amber-text block">
+                  {selectedBranchId === null
+                    ? "THE SACRED TIMELINE (ACTUAL HISTORY)"
+                    : selectedBranch
+                    ? `BRANCH 0${selectedBranch.branchNumber}: ${selectedBranch.shortTag}`
+                    : "BRANCH DETECTED"}
+                </span>
+                {selectedBranch && (
+                  <span className="text-[10.5px] text-[#b3704d] font-mono mt-0.5 block">
+                    VARIANCE: {selectedBranch.varianceScore.toFixed(1)}% {" // "} {selectedBranch.divergenceThreshold}
+                  </span>
+                )}
+              </div>
+
+              {/* TVA Reset Charge Button / Status */}
+              {selectedBranch && (
+                <div className="pt-1.5 border-t border-[#3e1b15]">
+                  {prunedBranchIds.includes(selectedBranch.id) ? (
+                    <div className="flex items-center justify-between gap-2 p-2 bg-[#200b0b] border border-[#ef4444]/60 rounded-lg text-xs">
+                      <span className="text-[#f87171] font-bold flex items-center gap-1.5 text-[11px]">
+                        <span>✕</span>
+                        <span>ANOMALY PURGED BY RESET CHARGE</span>
+                      </span>
+                      <button
+                        onClick={() => handleRestoreBranch(selectedBranch.id)}
+                        className="px-2.5 py-1 bg-[#180d09] border border-[#f59e0b] hover:bg-[#2b120a] text-[#fbbf24] rounded text-[10.5px] font-bold transition-all cursor-pointer"
+                        title="Restore this timeline branch"
+                      >
+                        RESTORE
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleDeployResetCharge(selectedBranch.id)}
+                      disabled={pruningBranchId !== null}
+                      className="w-full py-2 px-3 bg-gradient-to-r from-[#7f1d1d] via-[#991b1b] to-[#7f1d1d] hover:from-[#b91c1c] hover:to-[#991b1b] active:scale-[0.99] border-2 border-[#ef4444] rounded-lg text-white font-mono font-bold text-xs tracking-wider uppercase shadow-[0_0_15px_rgba(239,68,68,0.5)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      title="Activate TVA Reset Charge to neutralize and purge this alternate branch"
+                    >
+                      <span className="text-[#fca5a5] animate-pulse">⚡</span>
+                      <span>
+                        {pruningBranchId === selectedBranch.id
+                          ? "IONIZING TEMPORAL CHARGE..."
+                          : "DEPLOY RESET CHARGE (PRUNE BRANCH)"}
+                      </span>
+                      <span className="text-[#fca5a5] animate-pulse">⚡</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Box 2 (Bottom): Detailed Information Box with Rounded Orange Border */}
@@ -671,6 +889,28 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
                 ) : selectedBranch ? (
                   // Selected Branch: Concise Divergence & Sub-Branch Incidents
                   <div className="space-y-3">
+                    {/* If branch is pruned, show TVA Purged Warning Alert */}
+                    {prunedBranchIds.includes(selectedBranch.id) && (
+                      <div className="p-3 bg-[#240b0b] border border-[#ef4444] rounded-lg text-xs flex items-center justify-between shadow-[0_0_12px_rgba(239,68,68,0.25)]">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base text-[#ef4444]">⚠️</span>
+                          <div>
+                            <span className="text-[#fca5a5] font-bold block text-[11px]">
+                              TEMPORAL VARIANT PURGED
+                            </span>
+                            <span className="text-[#f87171]/80 text-[10px]">
+                              This timeline branch was dissolved by a TVA Reset Charge.
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleRestoreBranch(selectedBranch.id)}
+                          className="px-2.5 py-1 bg-[#180a0a] border border-[#f59e0b] hover:bg-[#2b120a] text-[#fbbf24] rounded text-[10.5px] font-bold transition-all cursor-pointer"
+                        >
+                          RESTORE
+                        </button>
+                      </div>
+                    )}
                     {/* Point of Divergence Incident Card */}
                     <div className="p-3 bg-[#1c0f0a] rounded-lg border border-[#e67e22]/70 shadow-[0_0_12px_rgba(230,126,34,0.2)]">
                       <div className="flex items-center justify-between text-[#f39c12] text-[11px] font-bold mb-1">

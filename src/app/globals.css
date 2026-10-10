@@ -148,6 +148,29 @@ svg, svg *, g, path, circle, rect {
   to { stroke-dashoffset: 0; }
 }
 
+/* TVA Reset Charge Pruning Disintegration Animation */
+.animate-prune-pulse {
+  animation: pruneIonize 0.85s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes pruneIonize {
+  0% {
+    opacity: 1;
+  }
+  20% {
+    opacity: 1;
+    filter: drop-shadow(0 0 16px #ec4899) drop-shadow(0 0 8px #a855f7);
+  }
+  55% {
+    opacity: 0.9;
+    filter: drop-shadow(0 0 25px #a855f7) drop-shadow(0 0 12px #38bdf8);
+  }
+  100% {
+    opacity: 0.12;
+    filter: drop-shadow(0 0 2px #7f1d1d);
+  }
+}
+
 /* Custom Phosphor Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
