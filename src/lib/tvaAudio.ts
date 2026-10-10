@@ -406,6 +406,90 @@ class TvaAudioEngine {
     osc.start(now);
     osc.stop(now + 0.38);
   }
+
+  // 7. TVA Reset Charge Temporal Pruning Sound Effect
+  public playResetChargeSound() {
+    if (this.isMuted) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+
+    // Phase 1: Rising Ionization Buildup (250ms)
+    const chargeOsc = ctx.createOscillator();
+    const chargeGain = ctx.createGain();
+    chargeOsc.type = "sawtooth";
+    chargeOsc.frequency.setValueAtTime(220, now);
+    chargeOsc.frequency.exponentialRampToValueAtTime(1800, now + 0.28);
+
+    const chargeFilter = ctx.createBiquadFilter();
+    chargeFilter.type = "lowpass";
+    chargeFilter.frequency.setValueAtTime(800, now);
+    chargeFilter.frequency.exponentialRampToValueAtTime(4500, now + 0.28);
+
+    chargeGain.gain.setValueAtTime(0.001, now);
+    chargeGain.gain.linearRampToValueAtTime(0.08, now + 0.22);
+    chargeGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+
+    chargeOsc.connect(chargeFilter);
+    chargeFilter.connect(chargeGain);
+    chargeGain.connect(ctx.destination);
+    chargeOsc.start(now);
+    chargeOsc.stop(now + 0.35);
+
+    // Phase 2: High-Energy Plasma Discharge Arc (Noise Blast + Resonant Filter)
+    const blastNoise = ctx.createBufferSource();
+    blastNoise.buffer = this.getNoiseBuffer(ctx);
+
+    const blastFilter = ctx.createBiquadFilter();
+    blastFilter.type = "bandpass";
+    blastFilter.frequency.setValueAtTime(3200, now + 0.25);
+    blastFilter.frequency.exponentialRampToValueAtTime(400, now + 0.7);
+    blastFilter.Q.setValueAtTime(3.0, now + 0.25);
+
+    const blastGain = ctx.createGain();
+    blastGain.gain.setValueAtTime(0.0001, now);
+    blastGain.gain.setValueAtTime(0.18, now + 0.26);
+    blastGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.85);
+
+    blastNoise.connect(blastFilter);
+    blastFilter.connect(blastGain);
+    blastGain.connect(ctx.destination);
+    blastNoise.start(now + 0.25);
+    blastNoise.stop(now + 0.9);
+
+    // Phase 3: Spatial Collapse Sub-Bass Boom
+    const boomOsc = ctx.createOscillator();
+    const boomGain = ctx.createGain();
+    boomOsc.type = "sine";
+    boomOsc.frequency.setValueAtTime(95, now + 0.26);
+    boomOsc.frequency.exponentialRampToValueAtTime(28, now + 0.8);
+
+    boomGain.gain.setValueAtTime(0.0001, now);
+    boomGain.gain.setValueAtTime(0.22, now + 0.28);
+    boomGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.85);
+
+    boomOsc.connect(boomGain);
+    boomGain.connect(ctx.destination);
+    boomOsc.start(now + 0.26);
+    boomOsc.stop(now + 0.9);
+
+    // Phase 4: Fading Temporal Shimmer / Disintegration Tail
+    const shimmerOsc = ctx.createOscillator();
+    const shimmerGain = ctx.createGain();
+    shimmerOsc.type = "sine";
+    shimmerOsc.frequency.setValueAtTime(1420, now + 0.3);
+    shimmerOsc.frequency.exponentialRampToValueAtTime(700, now + 1.1);
+
+    shimmerGain.gain.setValueAtTime(0.0001, now);
+    shimmerGain.gain.linearRampToValueAtTime(0.04, now + 0.35);
+    shimmerGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+
+    shimmerOsc.connect(shimmerGain);
+    shimmerGain.connect(ctx.destination);
+    shimmerOsc.start(now + 0.3);
+    shimmerOsc.stop(now + 1.25);
+  }
 }
 
 // Global Singleton Export
