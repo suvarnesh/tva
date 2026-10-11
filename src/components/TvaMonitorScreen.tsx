@@ -14,6 +14,7 @@ import {
 } from "@/lib/timelineRibbon";
 import { tvaAudio } from "@/lib/tvaAudio";
 import { AudioControlToggle } from "@/components/AudioControlToggle";
+import { TvaClassifiedDossierModal } from "@/components/TvaClassifiedDossierModal";
 
 interface TvaMonitorScreenProps {
   data: TimelineDetectionResult;
@@ -128,6 +129,9 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
   const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
   const [jsonCopyFeedback, setJsonCopyFeedback] = useState(false);
   const [jsonTab, setJsonTab] = useState<"all" | "baseline" | "branch">("all");
+
+  // Classified Dossier modal state
+  const [isDossierModalOpen, setIsDossierModalOpen] = useState(false);
 
   const selectedBranch: TimelineBranch | undefined = data.alternatives.find(
     (b) => b.id === selectedBranchId
@@ -260,11 +264,19 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
       }
 
       if (e.key === "Escape") {
-        if (isJsonModalOpen) {
+        if (isDossierModalOpen) {
+          setIsDossierModalOpen(false);
+        } else if (isJsonModalOpen) {
           setIsJsonModalOpen(false);
         } else {
           handleSelectBranch(null);
         }
+        return;
+      }
+
+      if (e.key.toLowerCase() === "d" && !e.metaKey && !e.ctrlKey) {
+        tvaAudio.playDossierStampSound();
+        setIsDossierModalOpen((prev) => !prev);
         return;
       }
 
@@ -283,7 +295,7 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [data.alternatives, handleSelectBranch, isJsonModalOpen]);
+  }, [data.alternatives, handleSelectBranch, isJsonModalOpen, isDossierModalOpen]);
 
   // Procedural ribbon paths during growth animation
   const currentMainRibbonPath = useMemo(() => {
@@ -416,6 +428,18 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
             >
               <span>{'{ }'}</span>
               <span>JSON</span>
+            </button>
+
+            <button
+              onClick={() => {
+                tvaAudio.playDossierStampSound();
+                setIsDossierModalOpen(true);
+              }}
+              title="Open classified TVA archival case file & download report (Shortcut: D)"
+              className="ml-0.5 px-2.5 py-1 rounded bg-[#2b180d] border border-[#f59e0b] hover:bg-[#452313] text-[#fcd34d] text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-[0_0_8px_rgba(245,158,11,0.25)]"
+            >
+              <span>📁</span>
+              <span>DOSSIER</span>
             </button>
 
             <AudioControlToggle className="ml-0.5" />
@@ -828,14 +852,28 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
                   </span>
                 </div>
 
-                <button
-                  onClick={() => setIsJsonModalOpen(true)}
-                  className="px-2 py-0.5 rounded text-[10px] bg-[#22120a] hover:bg-[#3d1a0e] text-[#f39c12] border border-[#e67e22]/60 font-bold transition-colors cursor-pointer flex items-center gap-1"
-                  title="Inspect and copy generated JSON data"
-                >
-                  <span>{'{ }'}</span>
-                  <span>JSON</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      tvaAudio.playDossierStampSound();
+                      setIsDossierModalOpen(true);
+                    }}
+                    className="px-2 py-0.5 rounded text-[10px] bg-[#2b180d] hover:bg-[#452313] text-[#fcd34d] border border-[#f59e0b]/70 font-bold transition-colors cursor-pointer flex items-center gap-1"
+                    title="Open classified TVA archival case file dossier"
+                  >
+                    <span>📁</span>
+                    <span>DOSSIER</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsJsonModalOpen(true)}
+                    className="px-2 py-0.5 rounded text-[10px] bg-[#22120a] hover:bg-[#3d1a0e] text-[#f39c12] border border-[#e67e22]/60 font-bold transition-colors cursor-pointer flex items-center gap-1"
+                    title="Inspect and copy generated JSON data"
+                  >
+                    <span>{'{ }'}</span>
+                    <span>JSON</span>
+                  </button>
+                </div>
               </div>
 
               {/* Scrollable Content Body */}
@@ -1104,6 +1142,15 @@ export const TvaMonitorScreen: React.FC<TvaMonitorScreenProps> = ({
           </div>
         </div>
       )}
+
+      {/* Classified TVA Archival Dossier & Case File Modal */}
+      <TvaClassifiedDossierModal
+        isOpen={isDossierModalOpen}
+        onClose={() => setIsDossierModalOpen(false)}
+        data={data}
+        selectedBranchId={selectedBranchId}
+        prunedBranchIds={prunedBranchIds}
+      />
     </div>
   );
 };
