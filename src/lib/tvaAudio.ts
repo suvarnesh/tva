@@ -490,6 +490,49 @@ class TvaAudioEngine {
     shimmerOsc.start(now + 0.3);
     shimmerOsc.stop(now + 1.25);
   }
+
+  // 8. TVA Bureaucratic Rubber Stamp & Dossier Clasp Sound Effect
+  public playDossierStampSound() {
+    if (this.isMuted) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+
+    // Heavy rubber stamp mechanical thud
+    const impactOsc = ctx.createOscillator();
+    const impactGain = ctx.createGain();
+    impactOsc.type = "sine";
+    impactOsc.frequency.setValueAtTime(150, now);
+    impactOsc.frequency.exponentialRampToValueAtTime(34, now + 0.14);
+
+    impactGain.gain.setValueAtTime(0.26, now);
+    impactGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+    impactOsc.connect(impactGain);
+    impactGain.connect(ctx.destination);
+    impactOsc.start(now);
+    impactOsc.stop(now + 0.2);
+
+    // Surface paper snap friction
+    const paperNoise = ctx.createBufferSource();
+    paperNoise.buffer = this.getNoiseBuffer(ctx);
+
+    const paperFilter = ctx.createBiquadFilter();
+    paperFilter.type = "bandpass";
+    paperFilter.frequency.setValueAtTime(1600, now);
+    paperFilter.Q.setValueAtTime(2.0, now);
+
+    const paperGain = ctx.createGain();
+    paperGain.gain.setValueAtTime(0.12, now);
+    paperGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+
+    paperNoise.connect(paperFilter);
+    paperFilter.connect(paperGain);
+    paperGain.connect(ctx.destination);
+    paperNoise.start(now);
+    paperNoise.stop(now + 0.12);
+  }
 }
 
 // Global Singleton Export
